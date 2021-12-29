@@ -1670,13 +1670,14 @@ getline (FILE* f = stdin) {
 int
 main (int argc, char** argv) {
     int _mode = 0;
+    std::string dstpath = "";
 
     // Check arguments
     if (argc < 2) {
         printf(
             "KGB Archiver v1.0, (C) 2005-2006 Tomasz Pawlak\nBased on PAQ6 by Matt Mahoney\nmod by Slawek (poczta-sn@gazeta.pl)\n\n"
             "Compression:\t\tkgb_arch.exe -<m> archive.kgb files <@list_files>\n"
-            "Decompression:\t\tkgb_arch.exe archive.kgb\n"
+            "Decompression:\t\tkgb_arch.exe [-d dest-folder] archive.kgb\n"
             "Table of contests:\tmore < archive.kgb\n\n"
             "m argument\tmemory usage\n"
             "----------\t------------------------------\n"
@@ -1698,7 +1699,12 @@ main (int argc, char** argv) {
     if (argc > 1 && argv[1][0] == '-') {
         if (isdigit(argv[1][1]) && argv[1][2] == 0)
             MEM = argv[1][1] - '0';
-        else
+        else if (argv[1][1] == 'd') {
+            // Destination directory.
+            dstpath = dstpath.assign(argv[2]);
+            argc--;
+            argv++;
+        } else
             printf("Option %s ignored\n", argv[1]);
         argc--;
         argv++;
@@ -1760,10 +1766,18 @@ main (int argc, char** argv) {
         // Extract files from archive data
         Transformer e(DECOMPRESS, archive);
         for (unsigned i = 0; i < filename.size(); ++i) {
-            printf("%10ldKB %s: ", filesize[i] / 1024, filename[i].c_str());
+            std::string fn = "";
+            if (dstpath.length() > 0) {
+                fn.assign(dstpath);
+                fn.push_back('/');
+                fn += filename[i];
+            } else {
+                fn.assign(filename[i]);
+            }
+            printf("%10ldKB %s: ", filesize[i] / 1024, fn.c_str());
 
             // Compare with existing file
-            FILE* f = fopen(filename[i].c_str(), "rb");
+            FILE* f = fopen(fn.c_str(), "rb");
             const long size = filesize[i];
             uncompressed_bytes += size;
             if (f) {
@@ -1783,18 +1797,8 @@ main (int argc, char** argv) {
 
             // Extract to new file
             else {
-/* security bug fixed by Joxean Koret, 1/04/2006, Thanks!*/
-                // f = fopen(filename[i].c_str(), "wb");
-                // if (!f)
-                //     printf("cannot create, skipping...\n");
-                // for (long j = 0; j < size; ++j) {
-                //     int c = e.decode();
-                //     if (f)
-                //         putc(c, f);
-
-                if (!((filename[i].find("../") != std::string::npos) ||
-                      (filename[i].find("..\\") != std::string::npos))) {
-                    f = fopen(filename[i].c_str(), "wb");
+                if (!((fn.find("../") != std::string::npos) || (fn.find("..\\") != std::string::npos))) {
+                    f = fopen(fn.c_str(), "wb");
                     if (!f)
                         printf("cannot create, skipping...\n");
                     for (long j = 0; j < size; ++j) {
@@ -1805,7 +1809,7 @@ main (int argc, char** argv) {
                 }
                 else {
                     printf("cannot create file.\n");
-                    printf("Directory traversal attack found while trying to create '%s' file\n", filename[i].c_str());
+                    printf("Directory traversal attack found while trying to create '%s' file\n", fn.c_str());
 
                     exit(EXIT_FAILURE);
                 }
